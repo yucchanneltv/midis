@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHub 自動スキャン SF2 / MIDI / MP3 配信API</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --panel: #131a26;
+      --panel-2: #1a2436;
+      --text: #e6edf7;
+      --muted: #8fa0b8;
+      --accent: #38bdf8;
+      --accent-2: #f59e0b;
+      --ok: #22c55e;
+      --err: #ef4444;
+      --border: rgba(148, 163, 184, 0.18);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: grid;
+      gap: 20px;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    h1 { margin: 0; font-size: 1.25rem; }
+    .subtitle { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card h2 { margin: 0; font-size: 1rem; color: var(--accent); }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    button {
+      appearance: none;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-primary { background: var(--accent); color: #061018; }
+    .btn-secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+    .btn-warn { background: var(--accent-2); color: #161004; }
+
+    .song-list { display: grid; gap: 12px; }
+
+    .song-item {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .song-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .song-title { font-weight: 700; font-size: 0.95rem; }
+
+    .badge {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      margin-left: 6px;
+    }
+
+    .url-box {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 8px;
+      word-break: break-all;
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      border-radius: 12px;
+      background: #070a10;
+      border: 1px solid var(--border);
+      color: #a5f3fc;
+      font-size: 0.77rem;
+      overflow-x: auto;
+      max-height: 380px;
+    }
+
+    .status { font-size: 0.82rem; color: var(--ok); min-height: 1.3em; }
+    .status.error { color: var(--err); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>GitHub 自動スキャン SF2 / MIDI / MP3 配信API</h1>
+        <p class="subtitle">GitHubリポジトリ内の .mp3 / .mid / .sf2 を自動検出して楽曲配信API（JSON）を組み立てます</p>
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="scanBtn">GitHubから自動読み込み</button>
+        <button class="btn-secondary" id="downloadJsonBtn">songs.json 保存</button>
+        <button class="btn-secondary" id="copyJsonBtn">JSONコピー</button>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <section class="card">
+        <h2>1. GitHub リポジトリ設定</h2>
+
+        <div class="row-2">
+          <label>
+            Owner
+            <input type="text" id="ghOwner" value="yucchanneltv" />
+          </label>
+          <label>
+            Repo
+            <input type="text" id="ghRepo" value="midis" />
+          </label>
+        </div>
+
+        <div class="row-3">
+          <label>
+            Branch
+            <input type="text" id="ghBranch" value="main" />
+          </label>
+          <label>
+            開始パス（任意）
+            <input type="text" id="ghPath" placeholder="例: songs" />
+          </label>
+          <label>
+            再帰スキャン深さ
+            <select id="maxDepth">
+              <option value="1">1階層（指定パスのみ）</option>
+              <option value="2" selected>2階層（サブフォルダ対応）</option>
+              <option value="3">3階層</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row-2">
+          <label>
+            GitHub Token（任意・レート制限緩和）
+            <input type="password" id="ghToken" placeholder="ghp_...（省略可）" />
+          </label>
+          <label>
+            Guitar GM Program (0-127)
+            <input type="number" id="guitarProgram" min="0" max="127" value="29" />
+          </label>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" id="scanBtn2">スキャン＆API生成</button>
+          <button class="btn-secondary" id="clearCacheBtn">キャッシュ消去</button>
+        </div>
+        <div class="status" id="statusText"></div>
+      </section>
+
+      <section class="card">
+        <h2>2. 自動生成された配信API（JSON）</h2>
+        <pre id="jsonPreview">{}</pre>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>3. 検出されたファイル一覧＆自動ペアリング結果</h2>
+      <div class="song-list" id="songList"></div>
+    </section>
+  </div>
+
+  <script>
+    const CACHE_KEY = "gh_rhythm_api_cache_v1";
+    const $ = (id) => document.getElementById(id);
+
+    let generatedSongs = [];
+    let rawFiles = [];
+    let previewAudio = null;
+
+    function setStatus(msg, isError = false) {
+      const el = $("statusText");
+      el.textContent = msg;
+      el.classList.toggle("error", Boolean(isError));
+    }
+
+    function encodeRawUrl(owner, repo, branch, filePath) {
+      const encodedSegments = filePath
+        .split("/")
+        .filter(Boolean)
+        .map((seg) => encodeURIComponent(seg))
+        .join("/");
+      return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${encodedSegments}`;
+    }
+
+    function getHeaders() {
+      const headers = { "Accept": "application/vnd.github+json" };
+      const token = $("ghToken").value.trim();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
+    async function fetchContentsRecursive(owner, repo, branch, currentPath, depth, maxDepth, acc) {
+      if (depth > maxDepth) return;
+      const cleanPath = currentPath.replace(/^\/+|\/+$/g, "");
+      const apiPath = cleanPath ? `/contents/${cleanPath.split("/").map(encodeURIComponent).join("/")}` : "/contents";
+      const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${apiPath}?ref=${encodeURIComponent(branch)}`;
+
+      const res = await fetch(url, { headers: getHeaders() });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => "");
+        throw new Error(`GitHub API ${res.status}: ${bodyText.slice(0, 140)}`);
+      }
+
+      const items = await res.json();
+      if (!Array.isArray(items)) return;
+
+      for (const item of items) {
+        if (item.type === "file") {
+          const lower = item.name.toLowerCase();
+          let kind = null;
+          if (lower.endsWith(".mp3")) kind = "mp3";
+          else if (lower.endsWith(".mid") || lower.endsWith(".midi")) kind = "midi";
+          else if (lower.endsWith(".sf2")) kind = "sf2";
+
+          if (kind) {
+            acc.push({
+              name: item.name,
+              path: item.path,
+              size: item.size,
+              kind,
+              url: item.download_url || encodeRawUrl(owner, repo, branch, item.path)
+            });
+          }
+        } else if (item.type === "dir" && depth < maxDepth) {
+          await fetchContentsRecursive(owner, repo, branch, item.path, depth + 1, maxDepth, acc);
+        }
+      }
+    }
+
+    function buildSongsFromFiles(files, guitarProgram) {
+      const mp3s = files.filter((f) => f.kind === "mp3");
+      const midis = files.filter((f) => f.kind === "midi");
+      const sf2s = files.filter((f) => f.kind === "sf2");
+
+      // デフォルトSF2（ドラム優先、なければ最初のSF2）
+      const defaultDrumSF2 =
+        sf2s.find((f) => /drum|kit|acoust/i.test(f.name)) || sf2s[0] || null;
+      const defaultGuitarSF2 =
+        sf2s.find((f) => /guitar|gtr|lead|dist|overdrive/i.test(f.name)) || null;
+
+      // ディレクトリ単位でグルーピング
+      const byDir = new Map();
+      for (const f of files) {
+        const parts = f.path.split("/");
+        const dir = parts.length > 1 ? parts.slice(0, -1).join("/") : "(root)";
+        if (!byDir.has(dir)) byDir.set(dir, []);
+        byDir.get(dir).push(f);
+      }
+
+      const songs = [];
+
+      // サブフォルダにMP3またはMIDIがある場合はフォルダ単位で曲化
+      for (const [dir, dirFiles] of byDir.entries()) {
+        if (dir === "(root)") continue;
+        const dirMp3 = dirFiles.find((f) => f.kind === "mp3");
+        const dirMidis = dirFiles.filter((f) => f.kind === "midi");
+        const dirSf2s = dirFiles.filter((f) => f.kind === "sf2");
+
+        if (dirMp3 || dirMidis.length > 0) {
+          const drumMidi =
+            dirMidis.find((f) => /drum|perc|kit/i.test(f.name)) || dirMidis[0] || null;
+          const guitarMidi =
+            dirMidis.find((f) => f !== drumMidi && /guitar|gtr|melody|lead/i.test(f.name)) ||
+            dirMidis.find((f) => f !== drumMidi) ||
+            null;
+
+          const drumSF2 =
+            dirSf2s.find((f) => /drum|kit|acoust/i.test(f.name)) ||
+            dirSf2s[0] ||
+            defaultDrumSF2;
+          const guitarSF2 =
+            dirSf2s.find((f) => /guitar|gtr/i.test(f.name)) || defaultGuitarSF2;
+
+          const folderName = dir.split("/").pop() || dir;
+          songs.push({
+            id: folderName.toLowerCase().replace(/[^a-z0-9]+/g, "_") || `song_${songs.length + 1}`,
+            title: folderName,
+            bgmMP3URLString: dirMp3 ? dirMp3.url : (mp3s[0]?.url || ""),
+            drumMIDIURLString: drumMidi ? drumMidi.url : (midis[0]?.url || ""),
+            drumSF2URLString: drumSF2 ? drumSF2.url : "",
+            useCacheForSF2: true,
+            guitarMIDIURLString: guitarMidi ? guitarMidi.url : null,
+            guitarSF2URLString: guitarSF2 ? guitarSF2.url : null,
+            guitarProgram
+          });
+        }
+      }
+
+      // ルート直下のMP3を基準に自動ペアリング
+      const rootMp3s = mp3s.filter((f) => !f.path.includes("/"));
+      const rootMidis = midis.filter((f) => !f.path.includes("/"));
+
+      for (const mp3 of rootMp3s) {
+        const stem = mp3.name.replace(/\.mp3$/i, "").toLowerCase();
+        // 曲名に一致するMIDI、または "bgm" なら汎用MIDIを探す
+        const matchedMidi =
+          rootMidis.find((m) => m.name.toLowerCase().includes(stem) && stem !== "bgm") ||
+          rootMidis.find((m) => /drum|track_06|no\s*name/i.test(m.name)) ||
+          rootMidis[0] ||
+          null;
+
+        const guitarMidi =
+          rootMidis.find((m) => m !== matchedMidi && /guitar|gtr|lead|melody/i.test(m.name)) || null;
+
+        const title = stem === "bgm"
+          ? (matchedMidi ? matchedMidi.name.replace(/\.(mid|midi)$/i, "") : "BGM Track")
+          : mp3.name.replace(/\.mp3$/i, "");
+
+        const idBase = title.toLowerCase().replace(/[^a-z0-9]+/g, "_") || `track_${songs.length + 1}`;
+        if (!songs.some((s) => s.bgmMP3URLString === mp3.url && s.drumMIDIURLString === (matchedMidi?.url || ""))) {
+          songs.push({
+            id: idBase,
+            title,
+            bgmMP3URLString: mp3.url,
+            drumMIDIURLString: matchedMidi ? matchedMidi.url : "",
+            drumSF2URLString: defaultDrumSF2 ? defaultDrumSF2.url : "",
+            useCacheForSF2: true,
+            guitarMIDIURLString: guitarMidi ? guitarMidi.url : null,
+            guitarSF2URLString: defaultGuitarSF2 ? defaultGuitarSF2.url : null,
+            guitarProgram
+          });
+        }
+      }
+
+      return songs;
+    }
+
+    function buildPayload() {
+      return {
+        apiVersion: "1.0",
+        source: {
+          owner: $("ghOwner").value.trim(),
+          repo: $("ghRepo").value.trim(),
+          branch: $("ghBranch").value.trim(),
+          path: $("ghPath").value.trim()
+        },
+        scannedAt: new Date().toISOString(),
+        detectedFiles: {
+          mp3: rawFiles.filter((f) => f.kind === "mp3").length,
+          midi: rawFiles.filter((f) => f.kind === "midi").length,
+          sf2: rawFiles.filter((f) => f.kind === "sf2").length
+        },
+        songs: generatedSongs
+      };
+    }
+
+    function render() {
+      const payload = buildPayload();
+      $("jsonPreview").textContent = JSON.stringify(payload, null, 2);
+
+      const listEl = $("songList");
+      listEl.innerHTML = "";
+
+      if (generatedSongs.length === 0) {
+        listEl.innerHTML = `<p class="subtitle">まだ楽曲が生成されていません。「GitHubから自動読み込み」を押してください。</p>`;
+        return;
+      }
+
+      generatedSongs.forEach((song, idx) => {
+        const div = document.createElement("div");
+        div.className = "song-item";
+        div.innerHTML = `
+          <div class="song-head">
+            <div>
+              <span class="song-title">${escapeHtml(song.title)}</span>
+              <span class="badge">${escapeHtml(song.id)}</span>
+              <span class="badge">GM:${song.guitarProgram}</span>
+            </div>
+            <div class="btn-row">
+              <button class="btn-warn" data-play="${idx}">MP3試聴</button>
+              <button class="btn-secondary" data-copy-song="${idx}">この曲JSONコピー</button>
+            </div>
+          </div>
+          <div class="url-box">
+            <strong>MP3:</strong> ${escapeHtml(song.bgmMP3URLString || "(未検出)")}<br/>
+            <strong>Drum MIDI:</strong> ${escapeHtml(song.drumMIDIURLString || "(未検出)")}<br/>
+            <strong>Guitar MIDI:</strong> ${escapeHtml(song.guitarMIDIURLString || "(なし)")}<br/>
+            <strong>Drum SF2:</strong> ${escapeHtml(song.drumSF2URLString || "(未検出)")}<br/>
+            <strong>Guitar SF2:</strong> ${escapeHtml(song.guitarSF2URLString || "(内蔵GM)")}
+          </div>
+        `;
+        listEl.appendChild(div);
+      });
+
+      listEl.querySelectorAll("[data-play]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const song = generatedSongs[Number(btn.dataset.play)];
+          if (!song?.bgmMP3URLString) {
+            setStatus("MP3 URLがありません", true);
+            return;
+          }
+          if (previewAudio) previewAudio.pause();
+          previewAudio = new Audio(song.bgmMP3URLString);
+          previewAudio.play()
+            .then(() => setStatus(`再生中: ${song.title}`))
+            .catch((e) => setStatus(`再生エラー: ${e.message}`, true));
+        });
+      });
+
+      listEl.querySelectorAll("[data-copy-song]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const song = generatedSongs[Number(btn.dataset.copySong)];
+          await navigator.clipboard.writeText(JSON.stringify(song, null, 2));
+          setStatus(`「${song.title}」のJSONをコピーしました`);
+        });
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    async function runScan() {
+      const owner = $("ghOwner").value.trim();
+      const repo = $("ghRepo").value.trim();
+      const branch = $("ghBranch").value.trim() || "main";
+      const basePath = $("ghPath").value.trim();
+      const maxDepth = Number($("maxDepth").value) || 2;
+      const guitarProgram = Math.max(0, Math.min(127, Number($("guitarProgram").value) || 29));
+
+      if (!owner || !repo) {
+        setStatus("Owner と Repo を入力してください", true);
+        return;
+      }
+
+      setStatus("GitHub API からファイルをスキャン中...");
+      try {
+        const files = [];
+        await fetchContentsRecursive(owner, repo, branch, basePath, 1, maxDepth, files);
+        rawFiles = files;
+        generatedSongs = buildSongsFromFiles(files, guitarProgram);
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          owner, repo, branch, basePath, maxDepth, guitarProgram, rawFiles, generatedSongs
+        }));
+
+        render();
+        setStatus(`完了: ${files.length}ファイル検出 → ${generatedSongs.length}曲の配信APIを生成しました`);
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    }
+
+    for (const id of ["scanBtn", "scanBtn2"]) {
+      $(id).addEventListener("click", runScan);
+    }
+
+    $("clearCacheBtn").addEventListener("click", () => {
+      localStorage.removeItem(CACHE_KEY);
+      rawFiles = [];
+      generatedSongs = [];
+      render();
+      setStatus("キャッシュを消去しました");
+    });
+
+    $("copyJsonBtn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(JSON.stringify(buildPayload(), null, 2));
+      setStatus("配信API JSON をコピーしました");
+    });
+
+    $("downloadJsonBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(buildPayload(), null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "songs.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus("songs.json をダウンロードしました");
+    });
+
+    // 起動時にキャッシュがあれば復元し、なければ自動スキャン
+    const cachedRaw = localStorage.getItem(CACHE_KEY);
+    if (cachedRaw) {
+      try {
+        const c = JSON.parse(cachedRaw);
+        if (c.owner) $("ghOwner").value = c.owner;
+        if (c.repo) $("ghRepo").value = c.repo;
+        if (c.branch) $("ghBranch").value = c.branch;
+        if (c.basePath) $("ghPath").value = c.basePath;
+        if (c.maxDepth) $("maxDepth").value = String(c.maxDepth);
+        if (typeof c.guitarProgram === "number") $("guitarProgram").value = String(c.guitarProgram);
+        rawFiles = c.rawFiles || [];
+        generatedSongs = c.generatedSongs || [];
+        render();
+        setStatus(`キャッシュから復元（${generatedSongs.length}曲）。最新化するには「GitHubから自動読み込み」を押してください。`);
+      } catch {
+        runScan();
+      }
+    } else {
+      runScan();
+    }
+  </script>
+</body>
+</html>
